@@ -228,7 +228,7 @@ if submit_button:
                 # Prompt yang sangat ketat untuk mencegah AI melanggar aturan JSON
                 system_prompt = f"""
                 Anda adalah mesin generator JSON. Anda HANYA BISA mengeluarkan output berupa JSON murni yang valid.
-                Tugas Anda: Buat konten modul ajar SANGAT MENDALAM untuk Topik: "{topik}", Mapel: "{mata_pelajaran}", Fase: "{kelas_fase}".
+                Tugas Anda: Buat konten modul ajar SANGAT MENDALAM gunakan CP sesuai dengan Keputusan Mentri Agama Nomor 1503 Tahun 2025 untuk Topik: "{topik}", Mapel: "{mata_pelajaran}", Fase: "{kelas_fase}".
                 
                 ATURAN WAJIB (JIKA DILANGGAR APLIKASI AKAN CRASH):
                 1. DILARANG KERAS menggunakan tanda kutip ganda (") di dalam nilai/value JSON. Jika butuh mengutip, gunakan tanda kutip tunggal (').
