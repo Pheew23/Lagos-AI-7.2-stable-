@@ -1,6 +1,5 @@
 import streamlit as st
 from openai import OpenAI
-import json
 import re
 import io
 from docx import Document
@@ -270,47 +269,98 @@ if submit_button:
     else:
         with st.spinner("Meracik modul dan mewarnai tabel Word... Mohon tunggu sekitar 15-30 detik."):
             try:
-                # Prompt JSON ditambahkan key untuk seluruh lampiran
+                # Prompt baru yang SAMA SEKALI BUKAN JSON. Super tangguh!
                 system_prompt = f"""
-                Anda adalah mesin generator JSON. Anda HANYA BISA mengeluarkan output berupa JSON murni yang valid.
-                Tugas Anda: Buat konten modul ajar SANGAT MENDALAM untuk Topik: "{topik}", Mapel: "{mata_pelajaran}", Fase: "{kelas_fase}".
+                Anda adalah pembuat Modul Ajar SANGAT MENDALAM untuk Topik: "{topik}", Mapel: "{mata_pelajaran}", Fase: "{kelas_fase}".
                 
-                ATURAN WAJIB (JIKA DILANGGAR APLIKASI AKAN CRASH):
-                1. DILARANG KERAS menggunakan tanda kutip ganda (") di dalam nilai/value JSON. Jika butuh mengutip, gunakan tanda kutip tunggal (').
-                2. DILARANG menggunakan karakter Enter (baris baru) secara literal. Gunakan teks persis '\\n-' (backslash-n-strip) untuk membuat baris baru/bullet point.
-                3. DILARANG menyertakan koma di akhir elemen (trailing comma).
-                4. PASTIKAN SEMUA KEYS TERISI. Output HARUS dimulai dengan {{ dan diakhiri dengan }}.
+                ATURAN MUTLAK:
+                - DILARANG KERAS MENGGUNAKAN FORMAT JSON. Output harus berupa Teks Biasa (Plain Text).
+                - Anda WAJIB memisahkan setiap bagian dengan TAG PEMBATAS persis seperti contoh di bawah (contoh: ===METODE===).
+                - Gunakan baris baru (Enter) dan tanda strip (-) untuk membuat poin-poin/list.
                 
-                Gunakan template JSON berikut persis seperti ini:
-                {{
-                  "metode": "Ceramah Interaktif, Diskusi Kelompok, Proyek",
-                  "pengetahuan_awal": "Pengetahuan awal siswa...",
-                  "minat_belajar": "Minat siswa...",
-                  "latar_belakang": "Latar belakang...",
-                  "kebutuhan_belajar": "Visual: ...\\n- Audio: ...\\n- Kinestetik: ...",
-                  "dimensi_profil": "1. Bernalar Kritis: ...\\n- 2. Kreatif: ...\\n- 3. Gotong Royong: ...",
-                  "panca_cinta": "1. Cinta Allah: ...\\n- 2. Cinta Sesama: ...\\n- 3. Cinta Ilmu: ...\\n- 4. Cinta Lingkungan: ...\\n- 5. Cinta Tanah Air: ...",
-                  "cp": "Tuliskan CP yang relevan...",
-                  "tp": "TP 1 (Pemahaman Dasar): ...\\n- TP 2 (Berpikir Kritis): ...",
-                  "lintas_disiplin": "Kaitan dengan mapel lain...",
-                  "sub_topik": "Rincian sub bab...",
-                  "lingkungan_belajar": "Setting kelas...",
-                  "kemitraan": "Guru mapel lain, orang tua...",
-                  "digital": "Canva, Quizizz, Youtube...",
-                  "kegiatan_pembukaan": "Kegiatan pembuka...\\n- Pertanyaan pemantik...\\n- Motivasi...",
-                  "kegiatan_inti": "Langkah 1 (Orientasi Masalah): ...\\n- Langkah 2 (Organisasi): ...\\n- Langkah 3 (Penyelidikan): ...",
-                  "kegiatan_penutup": "Kesimpulan...\\n- Refleksi...\\n- Doa...",
-                  "rubrik_sikap": "Disiplin: Selalu hadir tepat waktu...\\n- Tanggung Jawab: Menyelesaikan tugas...\\n- Kerja Sama: Aktif berdiskusi...\\n- Toleransi: Menghargai teman...",
-                  "rubrik_pengetahuan": "Mendefinisikan konsep...\\n- Menganalisis masalah dengan tepat...",
-                  "soal_hots": "1. Soal analisis...\\n- 2. Soal evaluasi...\\n- 3. Soal kreasi...",
-                  "materi_ajar": "Tuliskan ringkasan materi secara mendalam...",
-                  "lkpd": "Instruksi LKPD:\\n- Tugas 1...\\n- Tugas 2...",
-                  "remedial": "Bimbingan individu bagi siswa...\\n- Pemberian tugas tambahan...",
-                  "pengayaan": "Menjadi tutor sebaya...\\n- Mengerjakan proyek lanjutan...",
-                  "refleksi_guru": "Apa strategi yang paling efektif?...\\n- Kendala apa yang muncul?...",
-                  "refleksi_siswa": "Bagian mana yang paling disukai?...\\n- Apa yang masih sulit dipahami?...",
-                  "glosarium": "Istilah 1: Definisi 1...\\n- Istilah 2: Definisi 2..."
-                }}
+                GUNAKAN TEMPLATE INI (Jawab HANYA dengan format ini dari awal sampai akhir):
+                
+                ===METODE===
+                Ceramah Interaktif, Diskusi Kelompok, Proyek
+                ===PENGETAHUAN_AWAL===
+                Pengetahuan awal siswa terkait materi...
+                ===MINAT_BELAJAR===
+                Minat siswa kelas ini pada umumnya...
+                ===LATAR_BELAKANG===
+                Latar belakang era digital dan keseharian siswa...
+                ===KEBUTUHAN_BELAJAR===
+                - Visual: ...
+                - Audio: ...
+                - Kinestetik: ...
+                ===DIMENSI_PROFIL===
+                - 1. Bernalar Kritis: ...
+                - 2. Kreatif: ...
+                - 3. Gotong Royong: ...
+                ===PANCA_CINTA===
+                - 1. Cinta Allah: ...
+                - 2. Cinta Sesama: ...
+                - 3. Cinta Ilmu: ...
+                - 4. Cinta Lingkungan: ...
+                - 5. Cinta Tanah Air: ...
+                ===CP===
+                Tuliskan Capaian Pembelajaran yang relevan...
+                ===TP===
+                - TP 1 (Pemahaman Dasar): ...
+                - TP 2 (Berpikir Kritis): ...
+                ===LINTAS_DISIPLIN===
+                Kaitan dengan mapel lain (misal IPS/Sains)...
+                ===SUB_TOPIK===
+                Rincian sub bab yang dibahas...
+                ===LINGKUNGAN_BELAJAR===
+                Setting kelas dan alat bantu...
+                ===KEMITRAAN===
+                Guru mapel lain, orang tua...
+                ===DIGITAL===
+                Canva, Quizizz, Youtube...
+                ===KEGIATAN_PEMBUKAAN===
+                - Guru mengucapkan salam...
+                - Pertanyaan pemantik...
+                - Motivasi...
+                ===KEGIATAN_INTI===
+                - Langkah 1 (Orientasi Masalah): ...
+                - Langkah 2 (Organisasi): ...
+                - Langkah 3 (Penyelidikan): ...
+                ===KEGIATAN_PENUTUP===
+                - Kesimpulan...
+                - Refleksi...
+                - Doa...
+                ===RUBRIK_SIKAP===
+                - Disiplin: Selalu hadir tepat waktu...
+                - Tanggung Jawab: Menyelesaikan tugas...
+                - Kerja Sama: Aktif berdiskusi...
+                - Toleransi: Menghargai pendapat teman...
+                ===RUBRIK_PENGETAHUAN===
+                - Mampu mendefinisikan konsep...
+                - Mampu menganalisis masalah dengan tepat...
+                ===SOAL_HOTS===
+                - 1. Soal analisis...
+                - 2. Soal evaluasi...
+                - 3. Soal kreasi...
+                ===MATERI_AJAR===
+                Tuliskan ringkasan materi secara mendalam di sini...
+                ===LKPD===
+                - Tugas 1: ...
+                - Tugas 2: ...
+                ===REMEDIAL===
+                - Bimbingan individu...
+                - Pemberian tugas tambahan...
+                ===PENGAYAAN===
+                - Menjadi tutor sebaya...
+                - Mengerjakan proyek lanjutan...
+                ===REFLEKSI_GURU===
+                - Apa strategi yang paling efektif...
+                - Kendala apa yang muncul...
+                ===REFLEKSI_SISWA===
+                - Bagian mana yang paling disukai...
+                - Apa yang masih sulit dipahami...
+                ===GLOSARIUM===
+                - Istilah 1: Definisi 1...
+                - Istilah 2: Definisi 2...
                 """
 
                 # Mengirim request ke NVIDIA AI
@@ -318,28 +368,39 @@ if submit_button:
                     model="nvidia/nemotron-3-ultra-550b-a55b",
                     messages=[
                         {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": "Berikan output JSON murninya sekarang. Ingat, JANGAN ADA KUTIP GANDA (\") DI DALAM TEKS."}
+                        {"role": "user", "content": "Tuliskan seluruh modulnya sekarang menggunakan format Tag Pembatas (===KOLOM===). Jangan gunakan JSON."}
                     ],
-                    temperature=0.1, 
+                    temperature=0.3, # Sedikit dinaikkan agar AI lebih luwes menyusun materi
                     max_tokens=4000 
                 )
 
                 hasil_ai = completion.choices[0].message.content
                 
-                # --- PEMBERSIHAN JSON SUPER AMAN ---
-                match = re.search(r'\{.*\}', hasil_ai, re.DOTALL)
-                teks_json = match.group(0) if match else hasil_ai.strip()
-                teks_json = re.sub(r',\s*}', '}', teks_json)
-                teks_json = re.sub(r',\s*\]', ']', teks_json)
-
-                # Parsing string JSON
-                try:
-                    data_json = json.loads(teks_json, strict=False) 
-                except Exception as e:
-                    st.error(f"⚠️ Gagal Membaca JSON. Kode Error: `{e}`")
-                    st.warning("Hal ini terjadi karena AI menyelipkan tanda baca (seperti kutip atau enter) yang merusak format. Coba klik 'Buat Modul' lagi!")
-                    with st.expander("🔍 Lihat Hasil Teks Asli AI (Kirimkan Teks Ini Jika Butuh Bantuan)"):
-                        st.code(teks_json, language="json")
+                # --- PEMBERSIHAN ANTI-ERROR (TEXT TAGGING PARSER) ---
+                # Menggunakan RegEx untuk mengekstrak teks berdasarkan Tag (===NAMA_KOLOM===)
+                # Keunggulan metode ini: Mustahil terjadi JSON Error. Jika tulisan terpotong, program tetap jalan!
+                data_json = {}
+                fields = [
+                    "METODE", "PENGETAHUAN_AWAL", "MINAT_BELAJAR", "LATAR_BELAKANG",
+                    "KEBUTUHAN_BELAJAR", "DIMENSI_PROFIL", "PANCA_CINTA", "CP", "TP",
+                    "LINTAS_DISIPLIN", "SUB_TOPIK", "LINGKUNGAN_BELAJAR", "KEMITRAAN",
+                    "DIGITAL", "KEGIATAN_PEMBUKAAN", "KEGIATAN_INTI", "KEGIATAN_PENUTUP",
+                    "RUBRIK_SIKAP", "RUBRIK_PENGETAHUAN", "SOAL_HOTS", "MATERI_AJAR",
+                    "LKPD", "REMEDIAL", "PENGAYAAN", "REFLEKSI_GURU", "REFLEKSI_SISWA",
+                    "GLOSARIUM"
+                ]
+                
+                for field in fields:
+                    # Mencari teks mulai dari ===FIELD=== sampai sebelum ===FIELD_SELANJUTNYA=== (atau sampai habis)
+                    pattern = fr"==={field}===(.*?)(?====|$)"
+                    match = re.search(pattern, hasil_ai, re.DOTALL | re.IGNORECASE)
+                    data_json[field.lower()] = match.group(1).strip() if match else ""
+                
+                # Cek jika AI benar-benar bandel dan tidak memakai tag sama sekali
+                if not any(data_json.values()):
+                    st.error("⚠️ AI tidak memberikan respons yang sesuai format. Silakan coba lagi.")
+                    with st.expander("🔍 Lihat Hasil Teks Asli AI"):
+                        st.text(hasil_ai)
                     st.stop()
 
                 # --- LANJUT KE PEMBUATAN DOCX ---
