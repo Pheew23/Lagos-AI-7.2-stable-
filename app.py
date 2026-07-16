@@ -219,33 +219,38 @@ if submit_button:
     else:
         with st.spinner("Meracik modul dan mewarnai tabel Word... Mohon tunggu sekitar 15-30 detik."):
             try:
+                # Prompt yang sangat ketat untuk mencegah AI melanggar aturan JSON
                 system_prompt = f"""
-                Anda adalah pembuat Modul Ajar ahli. Buatlah modul ajar SANGAT MENDALAM berdasarkan "Kurikulum Berbasis Cinta - Pendekatan Deep Learning".
-                Topik: {topik}, Mapel: {mata_pelajaran}, Fase: {kelas_fase}.
+                Anda adalah mesin generator JSON. Anda HANYA BISA mengeluarkan output berupa JSON murni yang valid.
+                Tugas Anda: Buat konten modul ajar SANGAT MENDALAM untuk Topik: "{topik}", Mapel: "{mata_pelajaran}", Fase: "{kelas_fase}".
                 
-                WAJIB berikan respons HANYA format JSON valid. Jangan berikan teks lain di luar JSON!
-                Pisahkan setiap poin dengan karakter "\\n-" (backslash n diikuti strip) agar bisa dijadikan bullet point.
+                ATURAN WAJIB (JIKA DILANGGAR APLIKASI AKAN CRASH):
+                1. DILARANG KERAS menggunakan tanda kutip ganda (") di dalam nilai/value JSON. Jika butuh mengutip, gunakan tanda kutip tunggal (').
+                2. DILARANG menggunakan karakter Enter (baris baru) secara literal. Gunakan teks persis '\\n-' (backslash-n-strip) untuk membuat baris baru/bullet point.
+                3. DILARANG menyertakan koma di akhir elemen (trailing comma).
+                4. DILARANG menyisipkan komentar seperti // atau /*.
+                5. Output HARUS dimulai dengan {{ dan diakhiri dengan }}.
                 
-                Gunakan keys JSON berikut persis seperti ini:
+                Gunakan template JSON berikut persis seperti ini:
                 {{
                   "metode": "Ceramah Interaktif, Diskusi Kelompok, Proyek",
-                  "pengetahuan_awal": "Pengetahuan awal siswa terkait materi...",
-                  "minat_belajar": "Minat siswa kelas ini...",
-                  "latar_belakang": "Latar belakang era digital...",
+                  "pengetahuan_awal": "Pengetahuan awal siswa...",
+                  "minat_belajar": "Minat siswa...",
+                  "latar_belakang": "Latar belakang...",
                   "kebutuhan_belajar": "Visual: ...\\n- Audio: ...\\n- Kinestetik: ...",
                   "dimensi_profil": "1. Bernalar Kritis: ...\\n- 2. Kreatif: ...\\n- 3. Gotong Royong: ...",
                   "panca_cinta": "1. Cinta Allah: ...\\n- 2. Cinta Sesama: ...\\n- 3. Cinta Ilmu: ...\\n- 4. Cinta Lingkungan: ...\\n- 5. Cinta Tanah Air: ...",
                   "cp": "Tuliskan CP yang relevan...",
                   "tp": "TP 1 (Pemahaman Dasar): ...\\n- TP 2 (Berpikir Kritis): ...",
                   "lintas_disiplin": "Kaitan dengan mapel lain...",
-                  "sub_topik": "Rincian sub bab yang dibahas...",
+                  "sub_topik": "Rincian sub bab...",
                   "lingkungan_belajar": "Setting kelas...",
                   "kemitraan": "Guru mapel lain, orang tua...",
                   "digital": "Canva, Quizizz, Youtube...",
-                  "kegiatan_pembukaan": "Guru mengucapkan salam...\\n- Pertanyaan pemantik...\\n- Motivasi...",
+                  "kegiatan_pembukaan": "Kegiatan pembuka...\\n- Pertanyaan pemantik...\\n- Motivasi...",
                   "kegiatan_inti": "Langkah 1 (Orientasi Masalah): ...\\n- Langkah 2 (Organisasi): ...\\n- Langkah 3 (Penyelidikan): ...",
                   "kegiatan_penutup": "Kesimpulan...\\n- Refleksi...\\n- Doa...",
-                  "materi_ajar": "Tuliskan ringkasan materi yang padat...",
+                  "materi_ajar": "Tuliskan ringkasan materi...",
                   "lkpd": "Instruksi LKPD:\\n- Tugas 1...\\n- Tugas 2...",
                   "soal_hots": "1. Soal analisis...\\n- 2. Soal evaluasi...\\n- 3. Soal kreasi..."
                 }}
@@ -256,7 +261,7 @@ if submit_button:
                     model="nvidia/nemotron-3-ultra-550b-a55b",
                     messages=[
                         {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": "Keluarkan HANYA JSON murni. Jangan menulis penjelasan apapun di awal atau akhir."}
+                        {"role": "user", "content": "Berikan output JSON murninya sekarang. Ingat, JANGAN ADA KUTIP GANDA (\") DI DALAM TEKS."}
                     ],
                     temperature=0.1, 
                     max_tokens=4000 
@@ -264,28 +269,28 @@ if submit_button:
 
                 hasil_ai = completion.choices[0].message.content
                 
-                # --- PEMBERSIHAN JSON SUPER AMAN (REGULAR EXPRESSION) ---
-                # Mencari dan mengekstrak HANYA teks yang berada di dalam kurung kurawal {...}
+                # --- PEMBERSIHAN JSON SUPER AMAN ---
+                # 1. Ekstrak hanya bagian di dalam kurung kurawal {...}
                 match = re.search(r'\{.*\}', hasil_ai, re.DOTALL)
-                if match:
-                    teks_json = match.group(0)
-                else:
-                    teks_json = hasil_ai.strip()
+                teks_json = match.group(0) if match else hasil_ai.strip()
                 
-                # Parsing string JSON menjadi dictionary Python
-                # strict=False digunakan agar karakter control seperti line break asli (enter) 
-                # yang dibuat AI tidak menyebabkan error.
+                # 2. Hapus trailing comma (koma tidak sah di akhir elemen list/dict)
+                teks_json = re.sub(r',\s*}', '}', teks_json)
+                teks_json = re.sub(r',\s*\]', ']', teks_json)
+
+                # 3. Parsing string JSON
                 try:
+                    # strict=False menyelamatkan kita jika AI tidak sengaja memuntahkan kontrol karakter (seperti enter/tab)
                     data_json = json.loads(teks_json, strict=False) 
-                except json.JSONDecodeError as e:
-                    st.error("⚠️ AI gagal merangkai format JSON dengan sempurna.")
-                    with st.expander("Lihat Output Mentah AI (Untuk Debugging)"):
-                        st.error(f"Detail kode error: {e}")
-                        st.text_area("Apa yang AI katakan:", hasil_ai, height=300)
-                        st.text_area("Teks yang diproses (Setelah RegEx):", teks_json, height=300)
+                except Exception as e:
+                    # Tampilkan penyebab gagal secara frontal di UI
+                    st.error(f"⚠️ Gagal Membaca JSON. Kode Error: `{e}`")
+                    st.warning("Hal ini terjadi karena AI menyelipkan tanda baca (seperti kutip atau enter) yang merusak format. Coba klik 'Buat Modul' lagi!")
+                    with st.expander("🔍 Lihat Hasil Teks Asli AI (Kirimkan Teks Ini Jika Butuh Bantuan)"):
+                        st.code(teks_json, language="json")
                     st.stop()
 
-                # Metadata untuk identitas
+                # --- LANJUT KE PEMBUATAN DOCX ---
                 meta_data = {
                     "mapel": mata_pelajaran,
                     "kelas": kelas_fase,
