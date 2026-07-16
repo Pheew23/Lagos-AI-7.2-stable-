@@ -19,7 +19,7 @@ st.markdown("Menghasilkan Modul Ajar dengan format tabel **berwarna dan rapi** p
 try:
     api_key = st.secrets["NVIDIA_API_KEY"]
 except KeyError:
-    st.error("⚠️ NVIDIA_API_KEY tidak ditemukan di secrets.")
+    st.error("⚠️ NVIDIA_API_KEY tidak ditemukan di secrets. Pastikan sudah ada di .streamlit/secrets.toml")
     st.stop()
 
 client = OpenAI(
@@ -220,8 +220,9 @@ if submit_button:
         with st.spinner("Meracik modul dan mewarnai tabel Word... Mohon tunggu sekitar 15-30 detik."):
             try:
                 system_prompt = f"""
-                Anda adalah pembuat Modul Ajar ahli. Buatlah modul ajar SANGAT MENDALAM berdasarkan "Kurikulum Berbasis Cinta - Pendekatan Deep Learning".
+                Anda adalah pembuat Modul Ajar ahli dengan menggunakan CP sesuai Keputusan Mentri Agama 1503 tahun 2025. Buatlah modul ajar SANGAT MENDALAM berdasarkan "Kurikulum Berbasis Cinta - Pendekatan Deep Learning".
                 Topik: {topik}, Mapel: {mata_pelajaran}, Fase: {kelas_fase}.
+                
                 
                 WAJIB berikan respons HANYA format JSON valid. Jangan berikan teks lain!
                 Pisahkan setiap poin dengan karakter "\\n-" (newline dan strip) agar bisa dijadikan bullet point.
@@ -251,12 +252,12 @@ if submit_button:
                 }}
                 """
 
-                # Mengirim request ke NVIDIA AI (Suhu diturunkan agar JSON selalu valid)
+                # Mengirim request ke NVIDIA AI
                 completion = client.chat.completions.create(
                     model="nvidia/nemotron-3-ultra-550b-a55b",
                     messages=[
                         {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": "Keluarkan JSON murni tanpa tag ```json."}
+                        {"role": "user", "content": "Keluarkan JSON murni tanpa ada tag markdown."}
                     ],
                     temperature=0.1, 
                     max_tokens=4000 
@@ -264,16 +265,58 @@ if submit_button:
 
                 hasil_ai = completion.choices[0].message.content
                 
-                # Pembersihan JSON dari tag markdown (jika ada)
+                # Pembersihan JSON dengan cara yang aman untuk disalin-tempel
                 teks_json = hasil_ai.strip()
-                if teks_json.startswith("
-http://googleusercontent.com/immersive_entry_chip/0
-http://googleusercontent.com/immersive_entry_chip/1
-http://googleusercontent.com/immersive_entry_chip/2
+                ticks = "`" * 3
+                
+                if teks_json.startswith(ticks + "json"):
+                    teks_json = teks_json[7:]
+                elif teks_json.startswith(ticks):
+                    teks_json = teks_json[3:]
+                    
+                if teks_json.endswith(ticks):
+                    teks_json = teks_json[:-3]
+                    
+                teks_json = teks_json.strip()
+                
+                # Parsing string JSON menjadi dictionary Python
+                try:
+                    data_json = json.loads(teks_json) 
+                except json.JSONDecodeError as e:
+                    st.error("⚠️ AI gagal merangkai format JSON dengan sempurna.")
+                    with st.expander("Lihat Output Mentah AI (Untuk Debugging)"):
+                        st.error(f"Detail kode error: {e}")
+                        st.text_area("Apa yang AI katakan:", hasil_ai, height=300)
+                    st.stop()
 
-### Apa Saja yang Berubah di Versi Ini?
-1. **Fungsi `set_cell_bg` & `style_header_cell`:** Saya menambahkan kode XML murni ke dalam pustaka docx untuk mencetak warna sel secara otomatis.
-2. **Warna Tabel:** * Tabel Identitas dan Desain Pembelajaran kini memiliki **warna biru muda (kode `D9E2F3`)** pada kolom di sebelah kirinya (untuk menegaskan baris kategori).
-    * Tabel Kegiatan Pembelajaran kini menggunakan **warna Biru Gelap** pada Header, lengkap dengan font berwarna **Putih & Tebal (Bold)**.
-3. **Konversi Bullet Point yang Lebih Cerdas:** Sekarang, AI dipaksa menghasilkan pola `\n-` untuk setiap list. Fungsi `insert_bullet_points` di Python akan membaca pola tersebut dan mengubahnya menjadi *titik bullet beneran (List Bullet style)* di Microsoft Word, sehingga tulisan tidak tumpang tindih. 
-4. **Detail Konten (Prompt Diperkaya):** Saya menyuruh AI mengisi lengkap kelima poin *Panca Cinta*, Sintak *Problem Based Learning (Langkah 1 s/d 5)*, dan *Dimensi Profil* persis seperti di struktur modul Bahasa Indonesia yang Anda unggah. Output materi per mapel pun akan tetap sedalam aslinya.
+                # Metadata untuk identitas
+                meta_data = {
+                    "mapel": mata_pelajaran,
+                    "kelas": kelas_fase,
+                    "semester": semester,
+                    "waktu": alokasi_waktu,
+                    "topik": topik,
+                    "guru": nama_guru if nama_guru else "_______________",
+                    "sekolah": sekolah if sekolah else "_______________"
+                }
+
+                # Generate File Word berwarna
+                doc = generate_docx(meta_data, data_json)
+                
+                # Simpan ke memori untuk tombol download
+                doc_io = io.BytesIO()
+                doc.save(doc_io)
+                doc_io.seek(0)
+                
+                st.success("✅ Modul Ajar Berwarna berhasil dibuat!")
+                
+                # Tombol Download DOCX
+                st.download_button(
+                    label="📥 Download Modul (Format Word Berwarna)",
+                    data=doc_io,
+                    file_name=f"Modul_{mata_pelajaran.replace(' ', '_')}_{topik.replace(' ', '_')}.docx",
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                )
+                
+            except Exception as e:
+                st.error(f"Terjadi kesalahan pada sistem: {e}")
