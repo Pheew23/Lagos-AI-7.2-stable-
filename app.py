@@ -180,7 +180,13 @@ def generate_docx(meta, data):
     doc.add_paragraph(data.get("lkpd", ""))
     
     doc.add_heading('C. Asesmen Sumatif (Soal HOTS)', level=2)
-    insert_bullet_points(doc.add_paragraph(), data.get("soal_hots", ""))
+    # Perbaikan: Menggunakan logika loop langsung untuk document body (bukan cell tabel)
+    soal_lines = str(data.get("soal_hots", "")).split('\n')
+    for line in soal_lines:
+        line = line.strip().strip('-').strip('•').strip()
+        if line:
+            p = doc.add_paragraph(line)
+            p.style = 'List Bullet'
 
     # 7. Tanda Tangan
     doc.add_paragraph("\n\n")
