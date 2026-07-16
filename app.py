@@ -17,7 +17,7 @@ st.markdown("Masukkan Mapel dan Bab, AI akan membuatkan Modul Ajar **Kurikulum B
 try:
     api_key = st.secrets["NVIDIA_API_KEY"]
 except KeyError:
-    st.error("⚠️ NVIDIA_API_KEY tidak ditemukan di secrets.")
+    st.error("⚠️ NVIDIA_API_KEY tidak ditemukan di secrets. Pastikan Anda sudah mengaturnya di `.streamlit/secrets.toml`.")
     st.stop()
 
 client = OpenAI(
@@ -185,22 +185,39 @@ if submit_button:
                     model="nvidia/nemotron-3-ultra-550b-a55b",
                     messages=[
                         {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": "Berikan respons JSON untuk modul tersebut."}
+                        {"role": "user", "content": "Berikan respons HANYA dalam format JSON murni. Jangan ada teks pembuka atau penutup sama sekali."}
                     ],
-                    temperature=0.7,
+                    temperature=0.2, # Suhu rendah agar AI disiplin pada format
                     max_tokens=4000 
                 )
 
                 hasil_ai = completion.choices[0].message.content
                 
-                # Memastikan kita hanya mengambil blok JSON (berjaga-jaga jika AI menaruh tag ```json)
-                match = re.search(r'\{.*\}', hasil_ai, re.DOTALL)
-                if match:
-                    hasil_ai = match.group(0)
+                # --- PEMBERSIHAN JSON ---
+                teks_json = hasil_ai.strip()
+                
+                # Buang tag markdown jika AI masih menyertakannya
+                if teks_json.startswith("```json"):
+                    teks_json = teks_json[7:]
+                elif teks_json.startswith("```"):
+                    teks_json = teks_json[3:]
                     
-                data_json = json.loads(hasil_ai) # Parse teks JSON ke Dictionary Python
+                if teks_json.endswith("```"):
+                    teks_json = teks_json[:-3]
+                    
+                teks_json = teks_json.strip()
+                
+                # Parsing string JSON menjadi dictionary Python
+                try:
+                    data_json = json.loads(teks_json) 
+                except json.JSONDecodeError as e:
+                    st.error("⚠️ AI gagal merangkai format JSON dengan sempurna. Silakan klik tombol 'Buat Modul' sekali lagi.")
+                    with st.expander("Lihat Output Mentah AI (Untuk Debugging)"):
+                        st.error(f"Detail kode error: {e}")
+                        st.text_area("Apa yang AI katakan:", hasil_ai, height=300)
+                    st.stop()
 
-                # Metadata untuk identitas
+                # --- LANJUT KE PEMBUATAN DOCX ---
                 meta_data = {
                     "mapel": mata_pelajaran,
                     "kelas": kelas_fase,
@@ -225,11 +242,9 @@ if submit_button:
                 st.download_button(
                     label="📥 Download Modul (Format Word / DOCX)",
                     data=doc_io,
-                    file_name=f"Modul_{mata_pelajaran}_{topik}.docx",
+                    file_name=f"Modul_{mata_pelajaran.replace(' ', '_')}_{topik.replace(' ', '_')}.docx",
                     mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                 )
                 
-            except json.JSONDecodeError:
-                st.error("Terjadi kesalahan: Format AI tidak sesuai (Bukan JSON). Silakan klik tombol Generate ulang.")
             except Exception as e:
                 st.error(f"Terjadi kesalahan pada sistem: {e}")
