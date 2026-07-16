@@ -13,7 +13,7 @@ from docx.oxml import parse_xml
 st.set_page_config(page_title="Generator Modul Ajar AI", page_icon="📚", layout="wide")
 
 st.title("Generator Modul Ajar Premium (DOCX Berwarna) 🤖🎨")
-st.markdown("Menghasilkan Modul Ajar dengan format tabel **berwarna dan rapi** persis seperti template asli.")
+st.markdown("Menghasilkan Modul Ajar dengan format tabel **berwarna dan rapi** persis seperti template asli, lengkap hingga lampiran refleksi dan glosarium.")
 
 # --- API KEY ---
 try:
@@ -43,13 +43,17 @@ def style_header_cell(cell, text, bg_color="2F5496", text_color=RGBColor(255, 25
             run.font.bold = True
             run.font.color.rgb = text_color
 
-def insert_bullet_points(cell, text_data):
-    """Mengubah teks dengan baris baru menjadi bullet points di dalam sel tabel."""
+def insert_bullet_points(cell_or_doc, text_data):
+    """Mengubah teks dengan baris baru menjadi bullet points. Bisa di dalam sel tabel atau dokumen langsung."""
     lines = str(text_data).split('\n')
     for i, line in enumerate(lines):
         line = line.strip().strip('-').strip('•').strip()
         if line:
-            p = cell.paragraphs[0] if i == 0 else cell.add_paragraph()
+            # Cek apakah objek memiliki 'paragraphs' (berarti Cell) atau tidak (berarti Document)
+            if hasattr(cell_or_doc, 'paragraphs') and i == 0:
+                p = cell_or_doc.paragraphs[0]
+            else:
+                p = cell_or_doc.add_paragraph()
             p.text = line
             p.style = 'List Bullet'
 
@@ -72,7 +76,6 @@ def generate_docx(meta, data):
     t_id = doc.add_table(rows=5, cols=4)
     t_id.style = 'Table Grid'
     
-    # Rata kiri kolom ganjil diberi warna biru muda
     id_data = [
         ("Mata Pelajaran", meta['mapel'], "Kelas / Fase", meta['kelas']),
         ("Semester", meta['semester'], "Alokasi Waktu", meta['waktu']),
@@ -84,13 +87,13 @@ def generate_docx(meta, data):
     for i, row_data in enumerate(id_data):
         cells = t_id.rows[i].cells
         cells[0].text, cells[1].text = row_data[0], row_data[1]
-        set_cell_bg(cells[0], "D9E2F3") # Warna kolom kiri
+        set_cell_bg(cells[0], "D9E2F3")
         
-        if row_data[2]: # Jika ada data kolom kanan
+        if row_data[2]:
             cells[2].text, cells[3].text = row_data[2], row_data[3]
             set_cell_bg(cells[2], "D9E2F3")
         else:
-            cells[1].merge(cells[3]) # Gabung sel jika kosong (untuk Bab/Topik)
+            cells[1].merge(cells[3])
 
     doc.add_paragraph()
 
@@ -98,7 +101,7 @@ def generate_docx(meta, data):
     doc.add_heading('A. IDENTIFIKASI PESERTA DIDIK', level=2)
     t_peserta = doc.add_table(rows=6, cols=2)
     t_peserta.style = 'Table Grid'
-    t_peserta.columns[0].width = Pt(150) # Kolom kiri lebih kecil
+    t_peserta.columns[0].width = Pt(150)
     
     peserta_fields = [
         ("Pengetahuan Awal", data.get("pengetahuan_awal", "")),
@@ -149,12 +152,10 @@ def generate_docx(meta, data):
     t_pengalaman = doc.add_table(rows=4, cols=3)
     t_pengalaman.style = 'Table Grid'
     
-    # Header berwarna Biru Gelap
     headers = ["FASE KEGIATAN", "AKTIVITAS PEMBELAJARAN", "PRINSIP DL"]
     for i, h in enumerate(headers):
         style_header_cell(t_pengalaman.cell(0, i), h)
         
-    # Baris Isi
     fase_data = [
         ("PEMBUKAAN", data.get("kegiatan_pembukaan", ""), "MEANINGFUL\n(Bermakna)"),
         ("MEMAHAMI & MENGAPLIKASIKAN\n(Langkah 1-4 PBL)", data.get("kegiatan_inti", ""), "MINDFUL &\nJOYFUL"),
@@ -163,32 +164,76 @@ def generate_docx(meta, data):
     
     for i, (fase, aktivitas, prinsip) in enumerate(fase_data, start=1):
         t_pengalaman.cell(i, 0).text = fase
-        set_cell_bg(t_pengalaman.cell(i, 0), "F2F2F2") # Abu-abu terang
+        set_cell_bg(t_pengalaman.cell(i, 0), "F2F2F2")
         insert_bullet_points(t_pengalaman.cell(i, 1), aktivitas)
         t_pengalaman.cell(i, 2).text = prinsip
 
-    doc.add_paragraph()
 
-    # 6. Lampiran (Halaman Baru)
+    # ==========================================
+    # 6. LAMPIRAN I - ASESMEN
+    # ==========================================
     doc.add_page_break()
-    doc.add_heading('LAMPIRAN - MATERI & LKPD', level=1)
+    doc.add_heading('LAMPIRAN I - ASESMEN', level=1)
     
-    doc.add_heading('A. Ringkasan Materi', level=2)
-    doc.add_paragraph(data.get("materi_ajar", ""))
+    doc.add_heading('A. Rubrik Penilaian Sikap', level=2)
+    insert_bullet_points(doc, data.get("rubrik_sikap", ""))
     
-    doc.add_heading('B. Lembar Kerja Peserta Didik (LKPD)', level=2)
-    doc.add_paragraph(data.get("lkpd", ""))
+    doc.add_heading('B. Rubrik Penilaian Pengetahuan', level=2)
+    insert_bullet_points(doc, data.get("rubrik_pengetahuan", ""))
     
     doc.add_heading('C. Asesmen Sumatif (Soal HOTS)', level=2)
-    # Perbaikan: Menggunakan logika loop langsung untuk document body (bukan cell tabel)
-    soal_lines = str(data.get("soal_hots", "")).split('\n')
-    for line in soal_lines:
-        line = line.strip().strip('-').strip('•').strip()
-        if line:
-            p = doc.add_paragraph(line)
-            p.style = 'List Bullet'
+    insert_bullet_points(doc, data.get("soal_hots", ""))
 
-    # 7. Tanda Tangan
+    # ==========================================
+    # 7. LAMPIRAN II - MATERI AJAR
+    # ==========================================
+    doc.add_page_break()
+    doc.add_heading('LAMPIRAN II - MATERI AJAR', level=1)
+    doc.add_paragraph(data.get("materi_ajar", ""))
+
+    # ==========================================
+    # 8. LAMPIRAN III - LKPD
+    # ==========================================
+    doc.add_page_break()
+    doc.add_heading('LAMPIRAN III - LEMBAR KERJA PESERTA DIDIK (LKPD)', level=1)
+    doc.add_paragraph(data.get("lkpd", ""))
+
+    # ==========================================
+    # 9. LAMPIRAN IV - TINDAK LANJUT DAN REFLEKSI
+    # ==========================================
+    doc.add_page_break()
+    doc.add_heading('LAMPIRAN IV - TINDAK LANJUT DAN REFLEKSI', level=1)
+    
+    doc.add_heading('A. Program Remedial', level=2)
+    insert_bullet_points(doc, data.get("remedial", ""))
+    
+    doc.add_heading('B. Program Pengayaan', level=2)
+    insert_bullet_points(doc, data.get("pengayaan", ""))
+    
+    doc.add_heading('C. Refleksi Guru', level=2)
+    insert_bullet_points(doc, data.get("refleksi_guru", ""))
+    
+    doc.add_heading('D. Refleksi Peserta Didik', level=2)
+    insert_bullet_points(doc, data.get("refleksi_siswa", ""))
+
+    # ==========================================
+    # 10. GLOSARIUM & DAFTAR PUSTAKA
+    # ==========================================
+    doc.add_page_break()
+    doc.add_heading('GLOSARIUM', level=1)
+    insert_bullet_points(doc, data.get("glosarium", ""))
+    
+    doc.add_heading('DAFTAR PUSTAKA', level=1)
+    doc.add_paragraph(
+        "1. Kementerian Pendidikan, Kebudayaan, Riset, dan Teknologi. (2025). Buku Panduan Guru dan Buku Siswa.\n"
+        "2. Arends, R.I. (2012). Learning to Teach (9th ed.). New York: McGraw-Hill.\n"
+        "3. Barrows, H.S. (1986). A Taxonomy of Problem-Based Learning Methods.\n"
+        "4. Referensi relevan lainnya sesuai mata pelajaran."
+    )
+
+    # ==========================================
+    # 11. TANDA TANGAN
+    # ==========================================
     doc.add_paragraph("\n\n")
     sig_table = doc.add_table(rows=1, cols=2)
     sig_table.cell(0,0).text = "Mengetahui,\nKepala Sekolah\n\n\n\n\n( ________________________ )"
@@ -225,17 +270,16 @@ if submit_button:
     else:
         with st.spinner("Meracik modul dan mewarnai tabel Word... Mohon tunggu sekitar 15-30 detik."):
             try:
-                # Prompt yang sangat ketat untuk mencegah AI melanggar aturan JSON
+                # Prompt JSON ditambahkan key untuk seluruh lampiran
                 system_prompt = f"""
                 Anda adalah mesin generator JSON. Anda HANYA BISA mengeluarkan output berupa JSON murni yang valid.
-                Tugas Anda: Buat konten modul ajar SANGAT MENDALAM gunakan CP sesuai dengan Keputusan Mentri Agama Nomor 1503 Tahun 2025 untuk Topik: "{topik}", Mapel: "{mata_pelajaran}", Fase: "{kelas_fase}".
+                Tugas Anda: Buat konten modul ajar SANGAT MENDALAM untuk Topik: "{topik}", Mapel: "{mata_pelajaran}", Fase: "{kelas_fase}".
                 
                 ATURAN WAJIB (JIKA DILANGGAR APLIKASI AKAN CRASH):
                 1. DILARANG KERAS menggunakan tanda kutip ganda (") di dalam nilai/value JSON. Jika butuh mengutip, gunakan tanda kutip tunggal (').
                 2. DILARANG menggunakan karakter Enter (baris baru) secara literal. Gunakan teks persis '\\n-' (backslash-n-strip) untuk membuat baris baru/bullet point.
                 3. DILARANG menyertakan koma di akhir elemen (trailing comma).
-                4. DILARANG menyisipkan komentar seperti // atau /*.
-                5. Output HARUS dimulai dengan {{ dan diakhiri dengan }}.
+                4. PASTIKAN SEMUA KEYS TERISI. Output HARUS dimulai dengan {{ dan diakhiri dengan }}.
                 
                 Gunakan template JSON berikut persis seperti ini:
                 {{
@@ -256,9 +300,16 @@ if submit_button:
                   "kegiatan_pembukaan": "Kegiatan pembuka...\\n- Pertanyaan pemantik...\\n- Motivasi...",
                   "kegiatan_inti": "Langkah 1 (Orientasi Masalah): ...\\n- Langkah 2 (Organisasi): ...\\n- Langkah 3 (Penyelidikan): ...",
                   "kegiatan_penutup": "Kesimpulan...\\n- Refleksi...\\n- Doa...",
-                  "materi_ajar": "Tuliskan ringkasan materi...",
+                  "rubrik_sikap": "Disiplin: Selalu hadir tepat waktu...\\n- Tanggung Jawab: Menyelesaikan tugas...\\n- Kerja Sama: Aktif berdiskusi...\\n- Toleransi: Menghargai teman...",
+                  "rubrik_pengetahuan": "Mendefinisikan konsep...\\n- Menganalisis masalah dengan tepat...",
+                  "soal_hots": "1. Soal analisis...\\n- 2. Soal evaluasi...\\n- 3. Soal kreasi...",
+                  "materi_ajar": "Tuliskan ringkasan materi secara mendalam...",
                   "lkpd": "Instruksi LKPD:\\n- Tugas 1...\\n- Tugas 2...",
-                  "soal_hots": "1. Soal analisis...\\n- 2. Soal evaluasi...\\n- 3. Soal kreasi..."
+                  "remedial": "Bimbingan individu bagi siswa...\\n- Pemberian tugas tambahan...",
+                  "pengayaan": "Menjadi tutor sebaya...\\n- Mengerjakan proyek lanjutan...",
+                  "refleksi_guru": "Apa strategi yang paling efektif?...\\n- Kendala apa yang muncul?...",
+                  "refleksi_siswa": "Bagian mana yang paling disukai?...\\n- Apa yang masih sulit dipahami?...",
+                  "glosarium": "Istilah 1: Definisi 1...\\n- Istilah 2: Definisi 2..."
                 }}
                 """
 
@@ -276,20 +327,15 @@ if submit_button:
                 hasil_ai = completion.choices[0].message.content
                 
                 # --- PEMBERSIHAN JSON SUPER AMAN ---
-                # 1. Ekstrak hanya bagian di dalam kurung kurawal {...}
                 match = re.search(r'\{.*\}', hasil_ai, re.DOTALL)
                 teks_json = match.group(0) if match else hasil_ai.strip()
-                
-                # 2. Hapus trailing comma (koma tidak sah di akhir elemen list/dict)
                 teks_json = re.sub(r',\s*}', '}', teks_json)
                 teks_json = re.sub(r',\s*\]', ']', teks_json)
 
-                # 3. Parsing string JSON
+                # Parsing string JSON
                 try:
-                    # strict=False menyelamatkan kita jika AI tidak sengaja memuntahkan kontrol karakter (seperti enter/tab)
                     data_json = json.loads(teks_json, strict=False) 
                 except Exception as e:
-                    # Tampilkan penyebab gagal secara frontal di UI
                     st.error(f"⚠️ Gagal Membaca JSON. Kode Error: `{e}`")
                     st.warning("Hal ini terjadi karena AI menyelipkan tanda baca (seperti kutip atau enter) yang merusak format. Coba klik 'Buat Modul' lagi!")
                     with st.expander("🔍 Lihat Hasil Teks Asli AI (Kirimkan Teks Ini Jika Butuh Bantuan)"):
@@ -315,7 +361,7 @@ if submit_button:
                 doc.save(doc_io)
                 doc_io.seek(0)
                 
-                st.success("✅ Modul Ajar Berwarna berhasil dibuat!")
+                st.success("✅ Modul Ajar Berwarna (Lengkap dengan seluruh Lampiran) berhasil dibuat!")
                 
                 # Tombol Download DOCX
                 st.download_button(
