@@ -220,17 +220,16 @@ if submit_button:
         with st.spinner("Meracik modul dan mewarnai tabel Word... Mohon tunggu sekitar 15-30 detik."):
             try:
                 system_prompt = f"""
-                Anda adalah pembuat Modul Ajar ahli dengan menggunakan CP sesuai Keputusan Mentri Agama 1503 tahun 2025. Buatlah modul ajar SANGAT MENDALAM berdasarkan "Kurikulum Berbasis Cinta - Pendekatan Deep Learning".
+                Anda adalah pembuat Modul Ajar ahli. Buatlah modul ajar SANGAT MENDALAM berdasarkan "Kurikulum Berbasis Cinta - Pendekatan Deep Learning".
                 Topik: {topik}, Mapel: {mata_pelajaran}, Fase: {kelas_fase}.
                 
+                WAJIB berikan respons HANYA format JSON valid. Jangan berikan teks lain di luar JSON!
+                Pisahkan setiap poin dengan karakter "\\n-" (backslash n diikuti strip) agar bisa dijadikan bullet point.
                 
-                WAJIB berikan respons HANYA format JSON valid. Jangan berikan teks lain!
-                Pisahkan setiap poin dengan karakter "\\n-" (newline dan strip) agar bisa dijadikan bullet point.
-                
-                Gunakan keys JSON berikut:
+                Gunakan keys JSON berikut persis seperti ini:
                 {{
                   "metode": "Ceramah Interaktif, Diskusi Kelompok, Proyek",
-                  "pengetahuan_awal": "Pengetahuan awal siswa terkait {topik}...",
+                  "pengetahuan_awal": "Pengetahuan awal siswa terkait materi...",
                   "minat_belajar": "Minat siswa kelas ini...",
                   "latar_belakang": "Latar belakang era digital...",
                   "kebutuhan_belajar": "Visual: ...\\n- Audio: ...\\n- Kinestetik: ...",
@@ -238,7 +237,7 @@ if submit_button:
                   "panca_cinta": "1. Cinta Allah: ...\\n- 2. Cinta Sesama: ...\\n- 3. Cinta Ilmu: ...\\n- 4. Cinta Lingkungan: ...\\n- 5. Cinta Tanah Air: ...",
                   "cp": "Tuliskan CP yang relevan...",
                   "tp": "TP 1 (Pemahaman Dasar): ...\\n- TP 2 (Berpikir Kritis): ...",
-                  "lintas_disiplin": "Kaitan dengan mapel lain (misal IPS/IPA)...",
+                  "lintas_disiplin": "Kaitan dengan mapel lain...",
                   "sub_topik": "Rincian sub bab yang dibahas...",
                   "lingkungan_belajar": "Setting kelas...",
                   "kemitraan": "Guru mapel lain, orang tua...",
@@ -246,7 +245,7 @@ if submit_button:
                   "kegiatan_pembukaan": "Guru mengucapkan salam...\\n- Pertanyaan pemantik...\\n- Motivasi...",
                   "kegiatan_inti": "Langkah 1 (Orientasi Masalah): ...\\n- Langkah 2 (Organisasi): ...\\n- Langkah 3 (Penyelidikan): ...",
                   "kegiatan_penutup": "Kesimpulan...\\n- Refleksi...\\n- Doa...",
-                  "materi_ajar": "Tuliskan ringkasan materi {topik} yang padat...",
+                  "materi_ajar": "Tuliskan ringkasan materi yang padat...",
                   "lkpd": "Instruksi LKPD:\\n- Tugas 1...\\n- Tugas 2...",
                   "soal_hots": "1. Soal analisis...\\n- 2. Soal evaluasi...\\n- 3. Soal kreasi..."
                 }}
@@ -257,7 +256,7 @@ if submit_button:
                     model="nvidia/nemotron-3-ultra-550b-a55b",
                     messages=[
                         {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": "Keluarkan JSON murni tanpa ada tag markdown."}
+                        {"role": "user", "content": "Keluarkan HANYA JSON murni. Jangan menulis penjelasan apapun di awal atau akhir."}
                     ],
                     temperature=0.1, 
                     max_tokens=4000 
@@ -265,28 +264,25 @@ if submit_button:
 
                 hasil_ai = completion.choices[0].message.content
                 
-                # Pembersihan JSON dengan cara yang aman untuk disalin-tempel
-                teks_json = hasil_ai.strip()
-                ticks = "`" * 3
-                
-                if teks_json.startswith(ticks + "json"):
-                    teks_json = teks_json[7:]
-                elif teks_json.startswith(ticks):
-                    teks_json = teks_json[3:]
-                    
-                if teks_json.endswith(ticks):
-                    teks_json = teks_json[:-3]
-                    
-                teks_json = teks_json.strip()
+                # --- PEMBERSIHAN JSON SUPER AMAN (REGULAR EXPRESSION) ---
+                # Mencari dan mengekstrak HANYA teks yang berada di dalam kurung kurawal {...}
+                match = re.search(r'\{.*\}', hasil_ai, re.DOTALL)
+                if match:
+                    teks_json = match.group(0)
+                else:
+                    teks_json = hasil_ai.strip()
                 
                 # Parsing string JSON menjadi dictionary Python
+                # strict=False digunakan agar karakter control seperti line break asli (enter) 
+                # yang dibuat AI tidak menyebabkan error.
                 try:
-                    data_json = json.loads(teks_json) 
+                    data_json = json.loads(teks_json, strict=False) 
                 except json.JSONDecodeError as e:
                     st.error("⚠️ AI gagal merangkai format JSON dengan sempurna.")
                     with st.expander("Lihat Output Mentah AI (Untuk Debugging)"):
                         st.error(f"Detail kode error: {e}")
                         st.text_area("Apa yang AI katakan:", hasil_ai, height=300)
+                        st.text_area("Teks yang diproses (Setelah RegEx):", teks_json, height=300)
                     st.stop()
 
                 # Metadata untuk identitas
